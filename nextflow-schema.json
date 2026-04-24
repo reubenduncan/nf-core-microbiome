@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/reubenduncan/ecologyflow-core/blob/master/nextflow-schema.json",
+  "title": "core-microbiome pipeline parameters",
+  "description": "Nextflow pipeline for core microbiome detection and taxa summary from microbiome feature tables.",
+  "type": "object",
+  "definitions": {
+    "input_output_options": {
+      "title": "Input/Output options",
+      "type": "object",
+      "fa_icon": "fas fa-terminal",
+      "description": "Define where the pipeline should find input data and save output.",
+      "required": ["feature_table", "meta_table"],
+      "properties": {
+        "feature_table": {
+          "type": "string",
+          "format": "file-path",
+          "description": "Path to the feature/OTU table (BIOM, TSV, or GTDB format).",
+          "fa_icon": "fas fa-file"
+        },
+        "meta_table": {
+          "type": "string",
+          "format": "file-path",
+          "description": "Path to the metadata CSV file (rows = samples, row names must match feature table).",
+          "fa_icon": "fas fa-file-csv"
+        },
+        "taxonomy_table": {
+          "type": "string",
+          "format": "file-path",
+          "default": "",
+          "description": "Path to the taxonomy table (TSV; col1 = featureID, col2 = taxonomy string). Required for tsv and gtdb input formats.",
+          "fa_icon": "fas fa-file-alt"
+        },
+        "input_format": {
+          "type": "string",
+          "default": "biom",
+          "enum": ["biom", "tsv", "gtdb"],
+          "description": "Format of the input feature table.",
+          "fa_icon": "fas fa-file-import"
+        },
+        "output_dir": {
+          "type": "string",
+          "format": "directory-path",
+          "default": "${projectDir}/results",
+          "description": "Directory where output CSVs will be written.",
+          "fa_icon": "fas fa-folder-open"
+        },
+        "scripts_dir": {
+          "type": "string",
+          "default": "/opt/ecology-scripts",
+          "description": "Path inside the container where R scripts are located.",
+          "fa_icon": "fas fa-code"
+        }
+      }
+    },
+    "filtering_options": {
+      "title": "Filtering options",
+      "type": "object",
+      "fa_icon": "fas fa-filter",
+      "description": "Options for filtering samples before analysis.",
+      "properties": {
+        "min_library_size": {
+          "type": "integer",
+          "default": 5000,
+          "minimum": 1,
+          "description": "Minimum per-sample read depth. Samples below this threshold are dropped.",
+          "fa_icon": "fas fa-sort-numeric-up"
+        },
+        "exclude_column": {
+          "type": "string",
+          "default": "",
+          "description": "Metadata column used to select samples for exclusion.",
+          "fa_icon": "fas fa-times-circle"
+        },
+        "exclude_values": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated values in exclude_column identifying samples to remove.",
+          "fa_icon": "fas fa-ban"
+        }
+      }
+    },
+    "grouping_options": {
+      "title": "Grouping options",
+      "type": "object",
+      "fa_icon": "fas fa-layer-group",
+      "description": "Options for defining sample groups from metadata columns.",
+      "properties": {
+        "groups_column": {
+          "type": "string",
+          "default": "",
+          "description": "Metadata column to use as the Groups variable. Mutually exclusive with groups_paste_columns.",
+          "fa_icon": "fas fa-columns"
+        },
+        "groups_paste_columns": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated metadata columns to paste together (with '_') as the Groups variable.",
+          "fa_icon": "fas fa-columns"
+        },
+        "type_column": {
+          "type": "string",
+          "default": "",
+          "description": "Optional additional metadata column for subsetting (core microbiome step).",
+          "fa_icon": "fas fa-tag"
+        },
+        "type2_column": {
+          "type": "string",
+          "default": "",
+          "description": "Optional second additional metadata column for subsetting.",
+          "fa_icon": "fas fa-tag"
+        },
+        "type2_levels": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated levels of type2_column to retain.",
+          "fa_icon": "fas fa-list"
+        }
+      }
+    },
+    "core_microbiome_options": {
+      "title": "Core microbiome options",
+      "type": "object",
+      "fa_icon": "fas fa-circle",
+      "description": "Parameters controlling core microbiome detection via prevalence/detection thresholds.",
+      "properties": {
+        "which_level": {
+          "type": "string",
+          "default": "Phylum",
+          "enum": ["Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Otus"],
+          "description": "Taxonomic level at which to run core microbiome analysis.",
+          "fa_icon": "fas fa-sitemap"
+        },
+        "label": {
+          "type": "string",
+          "default": "analysis",
+          "description": "Label string prepended to all output file names.",
+          "fa_icon": "fas fa-tag"
+        },
+        "prevalence_min": {
+          "type": "number",
+          "default": 0.85,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum prevalence (fraction of samples) required to define a taxon as core.",
+          "fa_icon": "fas fa-percentage"
+        },
+        "what_detection": {
+          "type": "string",
+          "default": "absolute",
+          "enum": ["absolute", "relative"],
+          "description": "Whether detection thresholds are expressed as absolute read counts or relative abundances.",
+          "fa_icon": "fas fa-ruler"
+        },
+        "detection_steps": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 2,
+          "description": "Number of evenly log-spaced detection threshold steps.",
+          "fa_icon": "fas fa-sliders-h"
+        },
+        "detection_range_min": {
+          "type": "number",
+          "default": -1,
+          "description": "Minimum detection threshold. Set to -1 for automatic selection (1 for absolute, 0.001 for relative).",
+          "fa_icon": "fas fa-arrow-down"
+        },
+        "detection_range_max": {
+          "type": "number",
+          "default": -1,
+          "description": "Maximum detection threshold. Set to -1 for automatic selection (max(abundances)/10 for absolute, 0.2 for relative).",
+          "fa_icon": "fas fa-arrow-up"
+        }
+      }
+    },
+    "output_options": {
+      "title": "Output Options",
+      "type": "object",
+      "fa_icon": "fas fa-file-export",
+      "description": "Additional output formats produced after all analyses complete.",
+      "properties": {
+        "merge_parquet": {
+          "type": "boolean",
+          "default": false,
+          "description": "Merge all output CSVs into a single Parquet file with analysis and table metadata columns.",
+          "help_text": "Writes core_microbiome_{label}.parquet to output_dir. Filter by 'analysis' and 'table' columns downstream.",
+          "fa_icon": "fas fa-file-archive"
+        }
+      }
+    }
+  },
+  "allOf": [
+    { "$ref": "#/definitions/input_output_options" },
+    { "$ref": "#/definitions/filtering_options" },
+    { "$ref": "#/definitions/grouping_options" },
+    { "$ref": "#/definitions/core_microbiome_options" },
+    { "$ref": "#/definitions/output_options" }
+  ]
+}

@@ -1,0 +1,53 @@
+FROM rocker/r-ver:4.3.2
+
+LABEL maintainer="Reuben Duncan <reuben.duncan25@outlook.com>"
+LABEL description="Core microbiome analysis pipeline (ecologyflow-core)"
+
+# ---- System dependencies for R packages ------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libfontconfig1-dev \
+        libharfbuzz-dev \
+        libfribidi-dev \
+        libfreetype6-dev \
+        libpng-dev \
+        libtiff5-dev \
+        libjpeg-dev \
+        libgit2-dev \
+        libhdf5-dev \
+        zlib1g-dev \
+        libzstd-dev \
+        liblz4-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- CRAN packages ---------------------------------------------------------
+RUN Rscript -e "\
+    install.packages( \
+        c('optparse', 'vegan', 'dplyr', 'tidyr', 'stringr', 'BiocManager'), \
+        repos = 'https://cloud.r-project.org', \
+        Ncpus = parallel::detectCores() \
+    )"
+
+# ---- Bioconductor packages -------------------------------------------------
+RUN Rscript -e "\
+    BiocManager::install( \
+        c('phyloseq', 'microbiome'), \
+        update = FALSE, \
+        ask    = FALSE, \
+        Ncpus  = parallel::detectCores() \
+    )"
+
+# ---- arrow (pre-built C++ library; LIBARROW_BINARY avoids 30-min source compile) ----
+RUN LIBARROW_BINARY=true Rscript -e "\
+    install.packages('arrow', repos='https://cloud.r-project.org', \
+        Ncpus=max(1L, parallel::detectCores()-1L))"
+
+# ---- Copy R scripts --------------------------------------------------------
+COPY src/R/ /opt/ecology-scripts/
+
+RUN chmod +x /opt/ecology-scripts/*.R
+
+# ---- Default command -------------------------------------------------------
+CMD ["Rscript", "--help"]

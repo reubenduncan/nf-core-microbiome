@@ -1,0 +1,16 @@
+name: core-microbiome
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base>=4.2.0
+  - r-optparse
+  - r-vegan
+  - r-dplyr
+  - r-tidyr
+  - r-stringr
+  - bioconductor-phyloseq
+  - bioconductor-microbiome
+  - r-arrow
+  - nextflow>=23.04
