@@ -87,35 +87,17 @@
             "fa_icon": "fas fa-layer-group",
             "description": "Options for defining sample groups from metadata columns.",
             "properties": {
-                "groups_column": {
+                "group": {
                     "type": "string",
                     "default": "",
-                    "description": "Metadata column to use as the Groups variable. Mutually exclusive with groups_paste_columns.",
+                    "description": "One metadata column, or comma-separated columns to paste (space-joined) as the Groups label. If omitted, all samples are assigned to a single group 'All'.",
                     "fa_icon": "fas fa-columns"
                 },
-                "groups_paste_columns": {
+                "type": {
                     "type": "string",
                     "default": "",
-                    "description": "Comma-separated metadata columns to paste together (with '_') as the Groups variable.",
-                    "fa_icon": "fas fa-columns"
-                },
-                "type_column": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Optional additional metadata column for subsetting (core microbiome step).",
+                    "description": "One metadata column, or comma-separated columns to paste as an optional point-style label (used in core microbiome step only).",
                     "fa_icon": "fas fa-tag"
-                },
-                "type2_column": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Optional second additional metadata column for subsetting.",
-                    "fa_icon": "fas fa-tag"
-                },
-                "type2_levels": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Comma-separated levels of type2_column to retain.",
-                    "fa_icon": "fas fa-list"
                 }
             }
         },
