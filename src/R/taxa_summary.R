@@ -37,8 +37,8 @@ option_list <- list(
               help = "Output directory [default: .]"),
 
   # Filtering
-  make_option(c("--which_level"),       type = "character", default = "Phylum",
-              help = "Taxonomic level: Kingdom|Phylum|Class|Order|Family|Genus|Otus [default: Phylum]"),
+  make_option(c("--taxon_rank"),       type = "character", default = "Phylum",
+              help = "Taxonomic level: Kingdom|Phylum|Class|Order|Family|Genus|Feature [default: Phylum]"),
   make_option(c("--label"),             type = "character", default = "analysis",
               help = "Label prefix for output files [default: analysis]"),
   make_option(c("--min_library_size"),  type = "integer",   default = 5000L,
@@ -92,7 +92,7 @@ if (nchar(opt$taxa_groups_paste_columns) > 0 && nchar(opt$groups_paste_columns) 
 # ---- Prepare output dir -----------------------------------------------------
 
 dir.create(opt$output_dir, showWarnings = FALSE, recursive = TRUE)
-which_level <- opt$which_level
+taxon_rank <- opt$taxon_rank
 
 # ---- Load data --------------------------------------------------------------
 
@@ -103,11 +103,14 @@ ft_result <- load_feature_table(
   taxonomy_table = if (nchar(opt$taxonomy_table) > 0) opt$taxonomy_table else NULL
 )
 abund_table  <- ft_result$abund_table
-OTU_taxonomy <- ft_result$OTU_taxonomy
+feature_taxonomy <- ft_result$feature_taxonomy
 
 message("==> Loading metadata from: ", opt$meta_table)
-meta_table <- utils::read.csv(opt$meta_table, row.names = 1,
-                              check.names = FALSE, stringsAsFactors = FALSE)
+meta_table <- local({
+  sep <- if (grepl("\t", readLines(opt$meta_table, n = 1, warn = FALSE))) "\t" else ","
+  read.table(opt$meta_table, header = TRUE, sep = sep, row.names = 1,
+             check.names = FALSE, stringsAsFactors = FALSE)
+})
 
 # ---- Sample exclusion -------------------------------------------------------
 
@@ -168,15 +171,15 @@ if (nchar(opt$groups_column) > 0) {
 
 # ---- Taxonomic collation ----------------------------------------------------
 
-valid_levels <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Otus")
-if (!(which_level %in% valid_levels)) {
-  stop("--which_level must be one of: ", paste(valid_levels, collapse = ", "))
+valid_levels <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
+if (!(taxon_rank %in% valid_levels)) {
+  stop("--taxon_rank must be one of: ", paste(valid_levels, collapse = ", "))
 }
 
-if (which_level == "Otus") {
-  message("  Using OTU-level features (", ncol(abund_table), " features)")
+if (taxon_rank == "Feature") {
+  message("  Using feature-level features (", ncol(abund_table), " features)")
 } else {
-  tax_group     <- OTU_taxonomy[[which_level]]
+  tax_group     <- feature_taxonomy[[taxon_rank]]
   tax_group[is.na(tax_group) | tax_group == ""] <- "Unknown"
   groups_unique <- unique(tax_group)
 
@@ -187,7 +190,7 @@ if (which_level == "Otus") {
   })
   rownames(agg_mat) <- rownames(abund_table)
   abund_table <- agg_mat
-  message("  Aggregated to ", which_level, " level: ", ncol(abund_table), " taxa")
+  message("  Aggregated to ", taxon_rank, " level: ", ncol(abund_table), " taxa")
 }
 
 # ---- Normalisation ----------------------------------------------------------
@@ -266,7 +269,7 @@ rownames(df) <- NULL
 # ---- Write output -----------------------------------------------------------
 
 out_file <- file.path(opt$output_dir,
-  paste0("Taxa_summary_", which_level, "_", opt$label, ".csv"))
+  paste0("Taxa_summary_", taxon_rank, "_", opt$label, ".csv"))
 utils::write.csv(df, out_file, row.names = FALSE)
 message("Wrote taxa summary: ", out_file)
 message("==> taxa_summary.R complete.")

@@ -45,7 +45,7 @@ RUN LIBARROW_BINARY=true Rscript -e "\
         Ncpus=max(1L, parallel::detectCores()-1L))"
 
 # ---- Copy R scripts --------------------------------------------------------
-COPY src/R/ /opt/ecology-scripts/
+COPY src/ /opt/ecology-scripts/src/
 
 RUN chmod +x /opt/ecology-scripts/*.R
 

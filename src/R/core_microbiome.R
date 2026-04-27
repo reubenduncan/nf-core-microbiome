@@ -37,8 +37,8 @@ option_list <- list(
               help = "Output directory [default: .]"),
 
   # Filtering
-  make_option(c("--which_level"),       type = "character", default = "Phylum",
-              help = "Taxonomic level: Kingdom|Phylum|Class|Order|Family|Genus|Otus [default: Phylum]"),
+  make_option(c("--taxon_rank"),       type = "character", default = "Phylum",
+              help = "Taxonomic level: Kingdom|Phylum|Class|Order|Family|Genus|Feature [default: Phylum]"),
   make_option(c("--label"),             type = "character", default = "analysis",
               help = "Label prefix for output files [default: analysis]"),
   make_option(c("--min_library_size"),  type = "integer",   default = 5000L,
@@ -89,7 +89,7 @@ if (is.null(opt$meta_table)) {
 # ---- Prepare output dir -----------------------------------------------------
 
 dir.create(opt$output_dir, showWarnings = FALSE, recursive = TRUE)
-which_level <- opt$which_level
+taxon_rank <- opt$taxon_rank
 
 # ---- Load data --------------------------------------------------------------
 
@@ -100,11 +100,14 @@ ft_result <- load_feature_table(
   taxonomy_table = if (nchar(opt$taxonomy_table) > 0) opt$taxonomy_table else NULL
 )
 abund_table  <- ft_result$abund_table
-OTU_taxonomy <- ft_result$OTU_taxonomy
+feature_taxonomy <- ft_result$feature_taxonomy
 
 message("==> Loading metadata from: ", opt$meta_table)
-meta_table <- utils::read.csv(opt$meta_table, row.names = 1,
-                              check.names = FALSE, stringsAsFactors = FALSE)
+meta_table <- local({
+  sep <- if (grepl("\t", readLines(opt$meta_table, n = 1, warn = FALSE))) "\t" else ","
+  read.table(opt$meta_table, header = TRUE, sep = sep, row.names = 1,
+             check.names = FALSE, stringsAsFactors = FALSE)
+})
 
 # ---- Sample exclusion -------------------------------------------------------
 
@@ -168,25 +171,25 @@ if (nchar(opt$groups_column) > 0) {
 
 # ---- Taxonomic collation ----------------------------------------------------
 
-valid_levels <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Otus")
-if (!(which_level %in% valid_levels)) {
-  stop("--which_level must be one of: ", paste(valid_levels, collapse = ", "))
+valid_levels <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
+if (!(taxon_rank %in% valid_levels)) {
+  stop("--taxon_rank must be one of: ", paste(valid_levels, collapse = ", "))
 }
 
-if (which_level == "Otus") {
+if (taxon_rank == "Feature") {
   # Keep features as-is; label from taxonomy
-  rownames(OTU_taxonomy) <- make.unique(
-    ifelse(OTU_taxonomy$Genus != "", OTU_taxonomy$Genus, rownames(OTU_taxonomy))
+  rownames(feature_taxonomy) <- make.unique(
+    ifelse(feature_taxonomy$Genus != "", feature_taxonomy$Genus, rownames(feature_taxonomy))
   )
-  message("  Using OTU-level features (", ncol(abund_table), " features)")
+  message("  Using feature-level features (", ncol(abund_table), " features)")
 } else {
   # Aggregate by taxonomic level
-  level_idx <- match(which_level, valid_levels)
+  level_idx <- match(taxon_rank, valid_levels)
   if (level_idx < 1)
-    stop("Invalid which_level: ", which_level)
+    stop("Invalid taxon_rank: ", taxon_rank)
 
   # Build a grouping vector
-  tax_group <- OTU_taxonomy[[which_level]]
+  tax_group <- feature_taxonomy[[taxon_rank]]
   tax_group[is.na(tax_group) | tax_group == ""] <- "Unknown"
 
   # Aggregate columns of abund_table by tax_group
@@ -198,7 +201,7 @@ if (which_level == "Otus") {
   })
   rownames(agg_mat) <- rownames(abund_table)
   abund_table <- agg_mat
-  message("  Aggregated to ", which_level, " level: ", ncol(abund_table), " taxa")
+  message("  Aggregated to ", taxon_rank, " level: ", ncol(abund_table), " taxa")
 }
 
 # ---- Build phyloseq ---------------------------------------------------------
@@ -280,7 +283,7 @@ core_df <- tryCatch({
 # ---- Output 1: Core heatmap CSV ---------------------------------------------
 
 heatmap_file <- file.path(opt$output_dir,
-  paste0("Core_heatmap_", opt$label, "_", which_level, "_", opt$what_detection, ".csv"))
+  paste0("Core_heatmap_", opt$label, "_", taxon_rank, "_", opt$what_detection, ".csv"))
 utils::write.csv(core_df, heatmap_file, row.names = FALSE)
 message("Wrote heatmap data: ", heatmap_file)
 
@@ -334,7 +337,7 @@ if (nrow(core_df) > 0 && !("Warning" %in% colnames(core_df))) {
 }
 
 members_file <- file.path(opt$output_dir,
-  paste0("Core_members_", opt$label, "_", which_level, "_", opt$what_detection, ".csv"))
+  paste0("Core_members_", opt$label, "_", taxon_rank, "_", opt$what_detection, ".csv"))
 utils::write.csv(members_df, members_file, row.names = FALSE)
 message("Wrote core members: ", members_file, " (", nrow(members_df), " taxa)")
 

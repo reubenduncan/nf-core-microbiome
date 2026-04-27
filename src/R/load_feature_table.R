@@ -1,6 +1,6 @@
 # load_feature_table.R
 # Loads a feature table from BIOM, TSV, or GTDB format and returns a
-# standardised list: abund_table (samples x features) + OTU_taxonomy (data.frame).
+# standardised list: abund_table (samples x features) + feature_taxonomy (data.frame).
 
 load_feature_table <- function(feature_table, input_format, taxonomy_table = NULL) {
 
@@ -25,7 +25,7 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
   }
 
   .build_taxonomy_df <- function(feature_ids, tax_strings, format = "qiime") {
-    ranks <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Otus")
+    ranks <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
     rows <- lapply(tax_strings, function(ts) {
       parts <- .strip_prefixes(ts, format)
       # Pad or truncate to exactly 7 ranks
@@ -81,7 +81,7 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
     shared <- intersect(feat_keep, colnames(abund_table))
     list(
       abund_table  = abund_table[, shared, drop = FALSE],
-      OTU_taxonomy = tax_df[shared, , drop = FALSE]
+      feature_taxonomy = tax_df[shared, , drop = FALSE]
     )
   }
 
@@ -107,7 +107,7 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
     }
     tax_mat <- as.matrix(tax_mat)
 
-    ranks  <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Otus")
+    ranks  <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
     colnames(tax_mat)[seq_len(min(ncol(tax_mat), 7))] <- ranks[seq_len(min(ncol(tax_mat), 7))]
     tax_df <- as.data.frame(tax_mat, stringsAsFactors = FALSE)
 

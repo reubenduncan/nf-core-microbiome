@@ -15,7 +15,7 @@ nextflow run main.nf \
   --feature_table /path/to/feature_table.biom \
   --meta_table    /path/to/meta_table.csv \
   --groups_column Treatment \
-  --which_level   Genus \
+  --taxon_rank   Genus \
   --label         my_analysis
 ```
 
@@ -30,7 +30,6 @@ nextflow run main.nf \
 | `--taxonomy_table` | `""` | Taxonomy TSV (required for `tsv`/`gtdb` input formats) |
 | `--input_format` | `biom` | `biom` \| `tsv` \| `gtdb` |
 | `--output_dir` | `results/` | Directory for output files |
-| `--scripts_dir` | `/opt/ecology-scripts` | Path to R scripts (override for local runs) |
 
 ### Filtering
 
@@ -54,7 +53,7 @@ nextflow run main.nf \
 
 | Parameter | Default | Description |
 |---|---|---|
-| `--which_level` | `Phylum` | Taxonomic level for analysis (`Kingdom` \| `Phylum` \| `Class` \| `Order` \| `Family` \| `Genus` \| `Otus`) |
+| `--taxon_rank` | `Phylum` | Taxonomic level for analysis (`Kingdom` \| `Phylum` \| `Class` \| `Order` \| `Family` \| `Genus` \| `Feature`) |
 | `--label` | `analysis` | Label prepended to output file names |
 | `--prevalence_min` | `0.85` | Minimum prevalence (fraction of samples) to define a taxon as core |
 | `--what_detection` | `absolute` | Detection threshold type: `absolute` (read counts) \| `relative` (proportions) |
@@ -81,17 +80,23 @@ All files are written to `--output_dir`.
 ## Requirements
 
 - [Nextflow](https://www.nextflow.io/) ≥ 23.04
-- Docker (default) **or** a local R installation with: `optparse`, `vegan`, `dplyr`, `tidyr`, `stringr`, `phyloseq`, `microbiome`, `arrow`
+- [conda](https://docs.conda.io/) or [mamba](https://mamba.readthedocs.io/) (default executor — environment built automatically from `environment.yml`)
+- **or** Docker with `-profile docker`
+- **or** Singularity with `-profile singularity`
+- **or** a local R installation with: `optparse`, `vegan`, `dplyr`, `tidyr`, `stringr`, `phyloseq`, `microbiome`, `arrow`
 
-## Running without Docker
+## Running with a local R installation
+
+Add `-profile` to select your execution environment (conda is used by default if no profile is specified):
 
 ```bash
 nextflow run main.nf \
   -c nextflow.config \
-  --scripts_dir   "$(pwd)" \
   --feature_table /path/to/table.biom \
   --meta_table    /path/to/meta.csv \
   --groups_column Treatment \
-  --which_level   Genus \
+  --taxon_rank   Genus \
   --label         my_analysis
 ```
+
+Available profiles: `conda` (default), `docker`, `singularity`.

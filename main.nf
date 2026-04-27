@@ -57,13 +57,13 @@ process CORE_MICROBIOME {
     def det_max   = (params.detection_range_max != null) ? params.detection_range_max : -1
 
     """
-    Rscript ${params.scripts_dir}/src/R/core_microbiome.R \
+    Rscript ${projectDir}/src/R/core_microbiome.R \
         --feature_table   "${feature_table}" \
         --input_format    "${params.input_format}" \
         ${tax_arg} \
         --meta_table      "${meta_table}" \
         --output_dir      "." \
-        --which_level     "${params.which_level}" \
+        --taxon_rank     "${params.taxon_rank}" \
         --label           "${params.label}" \
         --min_library_size ${params.min_library_size} \
         --prevalence_min   ${params.prevalence_min} \
@@ -92,7 +92,7 @@ process MERGE_PARQUET {
 
     script:
     """
-    Rscript ${params.scripts_dir}/src/R/merge_parquet.R \\
+    Rscript ${projectDir}/src/R/merge_parquet.R \\
         --label      '${params.label}' \\
         --output_dir '.'
     """
