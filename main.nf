@@ -5,30 +5,11 @@ nextflow.enable.dsl = 2
 // core-microbiome pipeline — generates heatmap prevalence/detection data
 // ============================================================================
 
-// ---- Helper: resolve optional taxonomy_table argument ----------------------
-def taxonomy_arg(String path) {
-    (path != null && path != "") ? "--taxonomy_table ${path}" : ""
-}
-
+// ---- Helper: exclude filter argument ----------------------------------------
 def exclude_arg(String col, String vals) {
     def parts = []
     if (col  != null && col  != "") parts << "--exclude_column '${col}'"
     if (vals != null && vals != "") parts << "--exclude_values '${vals}'"
-    parts.join(" ")
-}
-
-def groups_arg(String col, String paste_cols) {
-    def parts = []
-    if (col        != null && col        != "") parts << "--groups_column '${col}'"
-    if (paste_cols != null && paste_cols != "") parts << "--groups_paste_columns '${paste_cols}'"
-    parts.join(" ")
-}
-
-def type_arg(String col, String col2, String levels2) {
-    def parts = []
-    if (col    != null && col    != "") parts << "--type_column '${col}'"
-    if (col2   != null && col2   != "") parts << "--type2_column '${col2}'"
-    if (levels2 != null && levels2 != "") parts << "--type2_levels '${levels2}'"
     parts.join(" ")
 }
 
@@ -42,19 +23,17 @@ process CORE_MICROBIOME {
     input:
     path feature_table
     path meta_table
-    val  taxonomy_table_path
+    path taxonomy_table
 
     output:
     path "Core_heatmap_*.csv", emit: heatmap_csv
     path "Core_members_*.csv", emit: members_csv
 
     script:
-    def tax_arg   = taxonomy_arg(taxonomy_table_path)
-    def excl_arg  = exclude_arg(params.exclude_column, params.exclude_values)
-    def grp_arg   = groups_arg(params.groups_column, params.groups_paste_columns)
-    def tp_arg    = type_arg(params.type_column, params.type2_column, params.type2_levels)
-    def det_min   = (params.detection_range_min != null) ? params.detection_range_min : -1
-    def det_max   = (params.detection_range_max != null) ? params.detection_range_max : -1
+    def tax_arg  = (taxonomy_table.name != 'NO_TAXONOMY') ? "--taxonomy_table ${taxonomy_table}" : ""
+    def excl_arg = exclude_arg(params.exclude_column, params.exclude_values)
+    def det_min  = (params.detection_range_min != null) ? params.detection_range_min : -1
+    def det_max  = (params.detection_range_max != null) ? params.detection_range_max : -1
 
     """
     Rscript ${projectDir}/src/R/core_microbiome.R \
@@ -72,8 +51,8 @@ process CORE_MICROBIOME {
         --detection_range_min ${det_min} \
         --detection_range_max ${det_max} \
         ${excl_arg} \
-        ${grp_arg} \
-        ${tp_arg}
+        ${params.group ? "--group '${params.group}'" : ""} \
+        ${params.type  ? "--type  '${params.type}'"  : ""}
     """
 }
 
@@ -114,11 +93,9 @@ workflow {
     // ---- Channels ----------------------------------------------------------
     ch_feature_table = Channel.fromPath(params.feature_table, checkIfExists: true)
     ch_meta_table    = Channel.fromPath(params.meta_table,    checkIfExists: true)
-    ch_taxonomy      = Channel.value(
-        (params.taxonomy_table != null && params.taxonomy_table != "")
-        ? params.taxonomy_table
-        : ""
-    )
+    ch_taxonomy = params.taxonomy_table
+        ? Channel.fromPath(params.taxonomy_table, checkIfExists: true).first()
+        : Channel.value(file('NO_TAXONOMY'))
 
     cm_out = CORE_MICROBIOME(ch_feature_table, ch_meta_table, ch_taxonomy)
 

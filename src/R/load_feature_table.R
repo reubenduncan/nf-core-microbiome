@@ -15,7 +15,8 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
     # format = "gtdb"  handles d__, p__, c__, o__, f__, g__, s__
     prefixes <- c(
       "D_0__", "D_1__", "D_2__", "D_3__", "D_4__", "D_5__", "D_6__",
-      "d__",   "p__",   "c__",   "o__",   "f__",   "g__",   "s__"
+      "d__",   "p__",   "c__",   "o__",   "f__",   "g__",   "s__",
+      "k__"
     )
     parts <- trimws(unlist(strsplit(tax_string, ";")))
     for (p in prefixes) {
@@ -100,33 +101,53 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
       abund_mat <- as.matrix(phyloseq::otu_table(ps))
     }
 
-    # Taxonomy
-    tax_mat <- phyloseq::tax_table(ps)
-    if (is.null(tax_mat)) {
-      stop("BIOM file contains no taxonomy. Provide --taxonomy_table separately.")
+    ranks <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
+
+    if (inherits(ps, "phyloseq")) {
+      tax_mat <- as.matrix(phyloseq::tax_table(ps))
+      colnames(tax_mat)[seq_len(min(ncol(tax_mat), 7))] <- ranks[seq_len(min(ncol(tax_mat), 7))]
+      tax_df <- as.data.frame(tax_mat, stringsAsFactors = FALSE)
+      for (r in colnames(tax_df)) {
+        tax_df[[r]] <- sub("^D_[0-9]+__", "", tax_df[[r]])
+        tax_df[[r]] <- sub("^[dpcofgs]__", "", tax_df[[r]])
+        tax_df[[r]][is.na(tax_df[[r]])] <- ""
+      }
+      shared_feats <- intersect(rownames(tax_df), colnames(abund_mat))
+      abund_mat <- abund_mat[, shared_feats, drop = FALSE]
+      tax_df    <- tax_df[shared_feats, , drop = FALSE]
+      result <- .prune_taxonomy(abund_mat, tax_df)
+      message("BIOM loaded: ", nrow(result$abund_table), " samples x ",
+              ncol(result$abund_table), " features (after pruning)")
+      return(result)
+    } else if (!is.null(taxonomy_table) && taxonomy_table != "" && file.exists(taxonomy_table)) {
+      message("BIOM has no embedded taxonomy — loading separate taxonomy table: ", taxonomy_table)
+      tax_raw <- tryCatch(
+        utils::read.table(taxonomy_table, header = FALSE, sep = "\t",
+                          check.names = FALSE, stringsAsFactors = FALSE, fill = TRUE),
+        error = function(e) stop("Failed to read taxonomy table: ", conditionMessage(e))
+      )
+      feat_ids <- as.character(tax_raw[[1]])
+      tax_strs <- as.character(tax_raw[[2]])
+      tax_df   <- .build_taxonomy_df(feat_ids, tax_strs, "qiime")
+      common   <- intersect(colnames(abund_mat), rownames(tax_df))
+      if (length(common) == 0)
+        stop("No feature IDs overlap between BIOM file and taxonomy table.")
+      abund_mat <- abund_mat[, common, drop = FALSE]
+      tax_df    <- tax_df[common, , drop = FALSE]
+      return(.prune_taxonomy(abund_mat, tax_df))
+    } else {
+      message(
+        "BIOM file has no embedded taxonomy. All features treated as features. ",
+        "Use --taxon_rank Feature, or supply a separate --taxonomy_table."
+      )
+      tax_df <- as.data.frame(
+        matrix("", nrow = ncol(abund_mat), ncol = 7,
+               dimnames = list(colnames(abund_mat), ranks)),
+        stringsAsFactors = FALSE
+      )
+      tax_df$Feature <- colnames(abund_mat)
+      return(list(abund_table = abund_mat, feature_taxonomy = tax_df))
     }
-    tax_mat <- as.matrix(tax_mat)
-
-    ranks  <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
-    colnames(tax_mat)[seq_len(min(ncol(tax_mat), 7))] <- ranks[seq_len(min(ncol(tax_mat), 7))]
-    tax_df <- as.data.frame(tax_mat, stringsAsFactors = FALSE)
-
-    # Strip prefixes
-    for (r in colnames(tax_df)) {
-      tax_df[[r]] <- sub("^D_[0-9]+__", "", tax_df[[r]])
-      tax_df[[r]] <- sub("^[dpcofgs]__", "", tax_df[[r]])
-      tax_df[[r]][is.na(tax_df[[r]])] <- ""
-    }
-
-    # Ensure abund_mat is samples x features with matching feature IDs
-    shared_feats <- intersect(rownames(tax_df), colnames(abund_mat))
-    abund_mat <- abund_mat[, shared_feats, drop = FALSE]
-    tax_df    <- tax_df[shared_feats, , drop = FALSE]
-
-    result <- .prune_taxonomy(abund_mat, tax_df)
-    message("BIOM loaded: ", nrow(result$abund_table), " samples x ",
-            ncol(result$abund_table), " features (after pruning)")
-    return(result)
   }
 
   # ---- TSV / GTDB -------------------------------------------------------------

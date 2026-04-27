@@ -49,13 +49,10 @@ option_list <- list(
               help = "Comma-separated values in exclude_column to drop"),
 
   # Grouping
-  make_option(c("--groups_column"),       type = "character", default = "",
-              help = "Metadata column to use as Groups"),
-  make_option(c("--groups_paste_columns"), type = "character", default = "",
-              help = "Comma-separated metadata columns to paste together as Groups"),
-  make_option(c("--type_column"),         type = "character", default = ""),
-  make_option(c("--type2_column"),        type = "character", default = ""),
-  make_option(c("--type2_levels"),        type = "character", default = ""),
+  make_option("--group", type = "character", default = "",
+              help = "One metadata column, or comma-separated columns pasted as the group label"),
+  make_option("--type",  type = "character", default = "",
+              help = "One metadata column, or comma-separated columns for point-style label (optional)"),
 
   # Core microbiome options
   make_option(c("--prevalence_min"),      type = "double",    default = 0.85,
@@ -144,29 +141,29 @@ if (nrow(abund_table) < 2) {
 
 # ---- Groups -----------------------------------------------------------------
 
-.validate_col <- function(df, col, arg_name) {
-  if (nchar(col) > 0 && !(col %in% colnames(df)))
-    stop("Column '", col, "' (", arg_name, ") not found in metadata. ",
-         "Available columns: ", paste(colnames(df), collapse = ", "))
+resolve_columns <- function(param_val, param_name, meta) {
+  cols <- trimws(strsplit(param_val, ",")[[1]])
+  missing <- setdiff(cols, colnames(meta))
+  if (length(missing) > 0)
+    stop(param_name, " references columns not in metadata: ", paste(missing, collapse = ", "))
+  if (length(cols) == 1) {
+    as.factor(as.character(meta[[cols]]))
+  } else {
+    as.factor(do.call(paste, c(meta[, cols, drop = FALSE], sep = " ")))
+  }
 }
 
-.validate_col(meta_table, opt$groups_column,        "--groups_column")
-.validate_col(meta_table, opt$type_column,           "--type_column")
-.validate_col(meta_table, opt$type2_column,          "--type2_column")
-
-if (nchar(opt$groups_paste_columns) > 0) {
-  paste_cols <- trimws(unlist(strsplit(opt$groups_paste_columns, ",")))
-  for (pc in paste_cols) .validate_col(meta_table, pc, "--groups_paste_columns")
-}
-
-if (nchar(opt$groups_column) > 0) {
-  meta_table$Groups <- meta_table[[opt$groups_column]]
-} else if (nchar(opt$groups_paste_columns) > 0) {
-  paste_cols <- trimws(unlist(strsplit(opt$groups_paste_columns, ",")))
-  meta_table$Groups <- apply(meta_table[, paste_cols, drop = FALSE], 1, paste, collapse = "_")
+if (opt$group != "") {
+  meta_table$Groups <- resolve_columns(opt$group, "--group", meta_table)
 } else {
-  message("  No groups_column or groups_paste_columns defined — assigning all samples to 'All'")
-  meta_table$Groups <- "All"
+  meta_table$Groups <- as.factor(rep("All", nrow(meta_table)))
+  message("No --group specified — all samples assigned to group 'All'.")
+}
+
+if (opt$type != "") {
+  meta_table$Type <- resolve_columns(opt$type, "--type", meta_table)
+} else {
+  meta_table$Type <- NULL
 }
 
 # ---- Taxonomic collation ----------------------------------------------------

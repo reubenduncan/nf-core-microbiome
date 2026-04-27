@@ -49,12 +49,8 @@ option_list <- list(
               help = "Comma-separated values in exclude_column to drop"),
 
   # Grouping
-  make_option(c("--groups_column"),         type = "character", default = "",
-              help = "Metadata column to use as Groups"),
-  make_option(c("--groups_paste_columns"),  type = "character", default = "",
-              help = "Comma-separated metadata columns to paste together as Groups"),
-  make_option(c("--taxa_groups_paste_columns"), type = "character", default = "",
-              help = "Alternative groups_paste_columns for taxa summary"),
+  make_option("--group", type = "character", default = "",
+              help = "One metadata column, or comma-separated columns pasted as the group label"),
 
   # Taxa summary options
   make_option(c("--top_n"),      type = "integer",   default = 25L,
@@ -84,10 +80,6 @@ if (!(normalise %in% c("relative", "rarefied", "clr"))) {
   stop("--normalise must be one of: relative, rarefied, clr")
 }
 
-# Merge taxa_groups_paste_columns into groups_paste_columns if provided
-if (nchar(opt$taxa_groups_paste_columns) > 0 && nchar(opt$groups_paste_columns) == 0) {
-  opt$groups_paste_columns <- opt$taxa_groups_paste_columns
-}
 
 # ---- Prepare output dir -----------------------------------------------------
 
@@ -146,27 +138,23 @@ if (nrow(abund_table) < 2) {
 
 # ---- Groups -----------------------------------------------------------------
 
-.validate_col <- function(df, col, arg_name) {
-  if (nchar(col) > 0 && !(col %in% colnames(df)))
-    stop("Column '", col, "' (", arg_name, ") not found in metadata. ",
-         "Available columns: ", paste(colnames(df), collapse = ", "))
+resolve_columns <- function(param_val, param_name, meta) {
+  cols <- trimws(strsplit(param_val, ",")[[1]])
+  missing <- setdiff(cols, colnames(meta))
+  if (length(missing) > 0)
+    stop(param_name, " references columns not in metadata: ", paste(missing, collapse = ", "))
+  if (length(cols) == 1) {
+    as.factor(as.character(meta[[cols]]))
+  } else {
+    as.factor(do.call(paste, c(meta[, cols, drop = FALSE], sep = " ")))
+  }
 }
 
-.validate_col(meta_table, opt$groups_column, "--groups_column")
-
-if (nchar(opt$groups_paste_columns) > 0) {
-  paste_cols <- trimws(unlist(strsplit(opt$groups_paste_columns, ",")))
-  for (pc in paste_cols) .validate_col(meta_table, pc, "--groups_paste_columns")
-}
-
-if (nchar(opt$groups_column) > 0) {
-  meta_table$Groups <- meta_table[[opt$groups_column]]
-} else if (nchar(opt$groups_paste_columns) > 0) {
-  paste_cols <- trimws(unlist(strsplit(opt$groups_paste_columns, ",")))
-  meta_table$Groups <- apply(meta_table[, paste_cols, drop = FALSE], 1, paste, collapse = "_")
+if (opt$group != "") {
+  meta_table$Groups <- resolve_columns(opt$group, "--group", meta_table)
 } else {
-  message("  No groups_column or groups_paste_columns defined — assigning all samples to 'All'")
-  meta_table$Groups <- "All"
+  meta_table$Groups <- as.factor(rep("All", nrow(meta_table)))
+  message("No --group specified — all samples assigned to group 'All'.")
 }
 
 # ---- Taxonomic collation ----------------------------------------------------
