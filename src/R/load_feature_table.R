@@ -93,20 +93,34 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
       stop("Package 'phyloseq' is required to import BIOM files.")
 
     message("Loading BIOM file: ", feature_table)
-    ps <- phyloseq::import_biom(feature_table)
+    biom_obj <- tryCatch(
+      biomformat::read_biom(feature_table),
+      error = function(e) stop("Failed to read BIOM file: ", conditionMessage(e))
+    )
 
-    # abund_table: samples x features
-    abund_mat <- as.matrix(t(phyloseq::otu_table(ps)))
-    if (!phyloseq::taxa_are_rows(ps)) {
-      abund_mat <- as.matrix(phyloseq::otu_table(ps))
-    }
+    # biom_data() returns features × samples; transpose to samples × features
+    abund_mat <- tryCatch(
+      t(as.matrix(biomformat::biom_data(biom_obj))),
+      error = function(e) stop("Failed to extract abundance data from BIOM: ", conditionMessage(e))
+    )
 
     ranks <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
 
-    if (inherits(ps, "phyloseq")) {
-      tax_mat <- as.matrix(phyloseq::tax_table(ps))
-      colnames(tax_mat)[seq_len(min(ncol(tax_mat), 7))] <- ranks[seq_len(min(ncol(tax_mat), 7))]
-      tax_df <- as.data.frame(tax_mat, stringsAsFactors = FALSE)
+    obs_meta <- tryCatch(biomformat::observation_metadata(biom_obj), error = function(e) NULL)
+    has_taxonomy <- !is.null(obs_meta) && length(obs_meta) > 0
+
+    if (has_taxonomy) {
+      tax_list <- lapply(obs_meta, function(m) {
+        tx <- if (is.list(m) && !is.null(m$taxonomy)) m$taxonomy
+              else if (is.character(m))               m
+              else                                    character(0)
+        result <- setNames(rep("", 7), ranks)
+        n <- min(length(tx), 7)
+        if (n > 0) result[seq_len(n)] <- as.character(tx[seq_len(n)])
+        result
+      })
+      tax_df <- as.data.frame(do.call(rbind, tax_list), stringsAsFactors = FALSE)
+      colnames(tax_df) <- ranks
       for (r in colnames(tax_df)) {
         tax_df[[r]] <- sub("^D_[0-9]+__", "", tax_df[[r]])
         tax_df[[r]] <- sub("^[dpcofgs]__", "", tax_df[[r]])
@@ -122,13 +136,26 @@ load_feature_table <- function(feature_table, input_format, taxonomy_table = NUL
     } else if (!is.null(taxonomy_table) && taxonomy_table != "" && file.exists(taxonomy_table)) {
       message("BIOM has no embedded taxonomy — loading separate taxonomy table: ", taxonomy_table)
       tax_raw <- tryCatch(
-        utils::read.table(taxonomy_table, header = FALSE, sep = "\t",
-                          check.names = FALSE, stringsAsFactors = FALSE, fill = TRUE),
+        as.data.frame(data.table::fread(taxonomy_table, header = TRUE,
+                                        check.names = FALSE, fill = TRUE)),
         error = function(e) stop("Failed to read taxonomy table: ", conditionMessage(e))
       )
+      colnames(tax_raw)[1] <- sub("^﻿", "", colnames(tax_raw)[1])
       feat_ids <- as.character(tax_raw[[1]])
-      tax_strs <- as.character(tax_raw[[2]])
-      tax_df   <- .build_taxonomy_df(feat_ids, tax_strs, "qiime")
+      if (ncol(tax_raw) >= 8) {
+        ranks <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Feature")
+        tax_df <- as.data.frame(tax_raw[, 2:8, drop = FALSE], stringsAsFactors = FALSE)
+        colnames(tax_df) <- ranks
+        rownames(tax_df) <- feat_ids
+        for (r in colnames(tax_df)) {
+          tax_df[[r]] <- sub("^D_[0-9]+__", "", tax_df[[r]])
+          tax_df[[r]] <- sub("^[dpcofgs]__", "", tax_df[[r]])
+          tax_df[[r]][is.na(tax_df[[r]])] <- ""
+        }
+      } else {
+        tax_strs <- as.character(tax_raw[[2]])
+        tax_df   <- .build_taxonomy_df(feat_ids, tax_strs, "qiime")
+      }
       common   <- intersect(colnames(abund_mat), rownames(tax_df))
       if (length(common) == 0)
         stop("No feature IDs overlap between BIOM file and taxonomy table.")
